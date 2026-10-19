@@ -1,6 +1,6 @@
 /* Tiny synthesized sound layer (no audio files). */
 (function(){
-  let ctx = null, master = null, enabled = false, drone = null;
+  let ctx = null, master = null, enabled = false, drone = null, dreadBuf = null, dreadNow = null;
 
   function init(){
     if(ctx) return;
@@ -53,6 +53,11 @@
       if(ctx) master.gain.linearRampToValueAtTime(0, ctx.currentTime + .4);
     },
     toggle(){ enabled ? Sfx.disable() : Sfx.enable(); return enabled; },
+    duck(on){                                  // lower the background hum while a video plays
+      if(!ctx || !enabled) return;
+      master.gain.cancelScheduledValues(ctx.currentTime);
+      master.gain.setTargetAtTime(on ? .03 : .22, ctx.currentTime, .25);
+    },
     whoosh(){
       if(!enabled || !ctx) return;
       const t = ctx.currentTime, len = ctx.sampleRate * .9;
@@ -126,6 +131,52 @@
       if(!enabled || !ctx) return;
       const t = ctx.currentTime;
       Sfx.hit(); Sfx.noise(t, .5, 'lowpass', 2400, 120, .6, .004);
+    },
+    /* The clip's own dark melody (0:39-0:43 of the clip, joined into a seamless loop). It takes over from the clip's sound with an even cross-fade:
+       opts.offset() gives where we are inside the loop at the moment it starts (so it carries on exactly where the clip is),
+       opts.fade is the length of the cross-fade in seconds. It plays on its own bus, whatever the site sound toggle says. */
+    dreadPrepare(){                                          // decode ahead of time, so starting it later is instant
+      init(); if(!ctx || dreadBuf || !window.DREAD_WAV) return;
+      const bin = atob(window.DREAD_WAV), u = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      ctx.decodeAudioData(u.buffer).then(b => { dreadBuf = b; }).catch(() => {});
+    },
+    dread(opts){
+      opts = opts || {}; Sfx.dreadStop(0);
+      init(); if(!ctx || !window.DREAD_WAV) return; if(ctx.state === 'suspended') ctx.resume();
+      const go = () => {
+        const fade = opts.fade || 1.6, t = ctx.currentTime + .03, src = ctx.createBufferSource(); src.buffer = dreadBuf; src.loop = true;
+        const off = Math.max(0, Math.min(dreadBuf.duration - .05, opts.offset ? opts.offset() : 0));
+        const out = ctx.createGain(), level = .1888;             // = the loudness of the clip itself, so the hand-over cannot be heard
+        out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(level, t + fade);
+        out.gain.linearRampToValueAtTime(level*2, t + fade + 14);   // then it slowly swells under the black screen
+        src.connect(out); out.connect(ctx.destination); src.start(t, off);
+        dreadNow = { out, nodes:[src] };
+      };
+      if(dreadBuf) go(); else {
+        const bin = atob(window.DREAD_WAV), u = new Uint8Array(bin.length); for(let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+        ctx.decodeAudioData(u.buffer).then(b => { dreadBuf = b; go(); }).catch(() => {});
+      }
+    },
+    dreadStop(sec){
+      if(!dreadNow || !ctx) return; const d = dreadNow, t = ctx.currentTime; dreadNow = null;
+      d.out.gain.cancelScheduledValues(t); d.out.gain.setValueAtTime(Math.max(.0001, d.out.gain.value), t); d.out.gain.exponentialRampToValueAtTime(.0001, t + (sec || .01) + .02);
+      setTimeout(() => d.nodes.forEach(n => { try{ n.stop(); }catch(e){} }), ((sec || 0) + .2)*1000);
+    },
+    crtOff(){                                  // old TV switching off: the picture squashes to a line, then a dot
+      if(!enabled || !ctx) return;
+      const t = ctx.currentTime;
+      Sfx.noise(t, .62, 'bandpass', 1500, 6500, .3, .25);              // static first
+      const o = ctx.createOscillator(); o.type = 'sine';                // then the picture collapses: a falling whine
+      o.frequency.setValueAtTime(7000, t + .62); o.frequency.exponentialRampToValueAtTime(180, t + .95);
+      const g = ctx.createGain(); env(g, t + .62, .01, .36, .16);
+      o.connect(g); g.connect(master); o.start(t + .62); o.stop(t + 1.1);
+      const th = ctx.createOscillator(); th.type = 'sine';             // a soft thump when the line snaps to a dot
+      th.frequency.setValueAtTime(90, t + .95); th.frequency.exponentialRampToValueAtTime(35, t + 1.4);
+      const tg = ctx.createGain(); env(tg, t + .95, .004, .45, .8);
+      th.connect(tg); tg.connect(master); th.start(t + .95); th.stop(t + 1.5);
+      const w = ctx.createOscillator(); w.type = 'sine'; w.frequency.setValueAtTime(15000, t + 1.0);
+      const wg = ctx.createGain(); env(wg, t + 1.0, .01, .7, .03);     // the high hum of the dot
+      w.connect(wg); wg.connect(master); w.start(t + 1.0); w.stop(t + 1.8);
     },
     reveal(dur){                               // the hole opens from the centre: air rushing outwards
       if(!enabled || !ctx) return;

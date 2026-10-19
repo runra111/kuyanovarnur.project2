@@ -58,6 +58,7 @@
     if(s.id === 's4') Headset.start(); else Headset.stop();
     if(s.id === 's6') Demo.start(); else Demo.stop();
     if(s.id === 's5') MiniBrain.start(); else MiniBrain.stop();
+    if(window.RealVid){ if(s.id === 's6') RealVid.start(); else RealVid.stop(); }
     if(s.id === 's2'){
       const a = $('#curvePath'), b = $('#curveHeld');
       a.style.setProperty('--len', a.getTotalLength()); b.style.setProperty('--len2', b.getTotalLength());
@@ -209,4 +210,13 @@
     const n = parseInt(location.hash.slice(1), 10);
     go(n && n > 1 && n <= N ? n - 1 : 0, { force:true });
   }
-  window.Deck = { enter };})();
+  /* ---------- leave: the site "switches off" (CRT shutdown) and the player page comes back; Play can start the site again ---------- */
+  function leave(){
+    started = false; locked = true; idx = -1; introPlayed = false;
+    stopIntro(true);
+    Hero.stop(); Headset.stop(); Demo.stop(); MiniBrain.stop(); if(window.RealVid) RealVid.stop();
+    slides.forEach(s => s.classList.remove('is-active', 'is-in', 'is-leaving'));
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    soundBtn.classList.remove('on');
+  }
+  window.Deck = { enter, leave, get started(){ return started; } };})();
