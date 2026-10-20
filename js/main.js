@@ -181,7 +181,7 @@
   }
 
   /* ---------- presenter timer ---------- */
-  const TOTAL = 8*60, PART_END = [150, 270, 405, 480], PART_NAME = ['Device & problem', 'How it works', 'Benefits', 'Conclusion'];
+  const TOTAL = 8*60, PART_END = [150, 270, 405, 480], PART_NAME = ['Problem & audience', 'Product & how it works', 'Benefits', 'Conclusion'];
   let tStart = 0;
   function resetTimer(){ tStart = performance.now(); }
   function updateTimer(){
