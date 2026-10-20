@@ -7,31 +7,38 @@
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let idx = -1, locked = true, started = false, introPlayed = false, introTimers = [];
 
-  /* ---------- background perspective grid ---------- */
+  /* ---------- background perspective grid ----------
+     The fixed part (glow, the converging lines) is painted once per size; each frame only the moving horizontal lines are
+     added, at most 30 times a second, and nothing is drawn while the intro page covers it or the tab is hidden. */
   (function bg(){
-    const cv = $('#bgGrid'), c = cv.getContext('2d');
-    let w, h, dpr, t = 0, visible = true;
-    function size(){ dpr = Math.min(devicePixelRatio || 1, 1.5); w = cv.width = innerWidth*dpr; h = cv.height = innerHeight*dpr; }
+    const cv = $('#bgGrid'), c = cv.getContext('2d'), st = document.createElement('canvas'), sc = st.getContext('2d');
+    let w, h, dpr, t = 0, visible = true, lastDraw = 0;
+    function paintStatic(){
+      st.width = w; st.height = h; sc.clearRect(0, 0, w, h);
+      const g = sc.createRadialGradient(w/2, h*.55, 0, w/2, h*.55, w*.7);
+      g.addColorStop(0, 'rgba(3,40,24,.75)'); g.addColorStop(1, 'rgba(1,10,6,0)');
+      sc.fillStyle = g; sc.fillRect(0, 0, w, h);
+      const hy = h*.58; sc.lineWidth = 1*dpr;
+      sc.strokeStyle = 'rgba(45,255,143,.16)';
+      for(let i = -16; i <= 16; i++){ sc.beginPath(); sc.moveTo(w/2 + i*w*.012, hy); sc.lineTo(w/2 + i*w*.16, h); sc.stroke(); }
+      sc.strokeStyle = 'rgba(45,255,143,.05)';                  // faint ceiling lines
+      for(let i = -10; i <= 10; i++){ sc.beginPath(); sc.moveTo(w/2 + i*w*.012, hy - 1); sc.lineTo(w/2 + i*w*.16, 0); sc.stroke(); }
+    }
+    function size(){ dpr = Math.min(devicePixelRatio || 1, 1.25); w = cv.width = Math.round(innerWidth*dpr); h = cv.height = Math.round(innerHeight*dpr); paintStatic(); lastDraw = 0; }
     size(); addEventListener('resize', size);
     document.addEventListener('visibilitychange', () => visible = !document.hidden);
-    function draw(){
-      requestAnimationFrame(draw); if(!visible) return;
-      t += .006; c.clearRect(0, 0, w, h);
-      const g = c.createRadialGradient(w/2, h*.55, 0, w/2, h*.55, w*.7);
-      g.addColorStop(0, 'rgba(3,40,24,.75)'); g.addColorStop(1, 'rgba(1,10,6,0)');
-      c.fillStyle = g; c.fillRect(0, 0, w, h);
+    function draw(now){
+      requestAnimationFrame(draw);
+      if(!visible || !window.Deck || !Deck.started) return;
+      if(now - lastDraw < 33) return; lastDraw = now;
+      t += .006*2; c.clearRect(0, 0, w, h); c.drawImage(st, 0, 0);
       const hy = h*.58; c.lineWidth = 1*dpr;
-      c.strokeStyle = 'rgba(45,255,143,.16)';
-      for(let i = -16; i <= 16; i++){ c.beginPath(); c.moveTo(w/2 + i*w*.012, hy); c.lineTo(w/2 + i*w*.16, h); c.stroke(); }
       for(let i = 0; i < 12; i++){
         const k = ((i + t*3) % 12)/12, y = hy + k*k*(h - hy);
         c.strokeStyle = 'rgba(45,255,143,' + (.05 + k*.22) + ')'; c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke();
       }
-      // faint ceiling lines
-      c.strokeStyle = 'rgba(45,255,143,.05)';
-      for(let i = -10; i <= 10; i++){ c.beginPath(); c.moveTo(w/2 + i*w*.012, hy - 1); c.lineTo(w/2 + i*w*.16, 0); c.stroke(); }
     }
-    draw();
+    requestAnimationFrame(draw);
   })();
 
   /* ---------- decorative waveforms (slide 5) ---------- */
@@ -206,13 +213,14 @@
     if(started) return; started = true;
     if(sound){ Sfx.enable(); soundBtn.classList.add('on'); }
     locked = false;
-    resetTimer();
+    resetTimer(); if(window.Perf) Perf.watch = true;
     const n = parseInt(location.hash.slice(1), 10);
     go(n && n > 1 && n <= N ? n - 1 : 0, { force:true });
   }
   /* ---------- leave: the site "switches off" (CRT shutdown) and the player page comes back; Play can start the site again ---------- */
   function leave(){
     started = false; locked = true; idx = -1; introPlayed = false;
+    if(window.Perf) Perf.watch = false;
     stopIntro(true);
     Hero.stop(); Headset.stop(); Demo.stop(); MiniBrain.stop(); if(window.RealVid) RealVid.stop();
     slides.forEach(s => s.classList.remove('is-active', 'is-in', 'is-leaving'));

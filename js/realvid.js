@@ -117,6 +117,7 @@
     seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
     kicker.textContent = T.kicker; title.innerHTML = T.title; tip.textContent = T.tip;
     if(!isVid) vid.pause();
+    if(window.Demo && Demo.hold) Demo.hold(isVid);
     fit();
   }
   seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => { mode(b.dataset.m); if(window.Sfx) Sfx.blip(b.dataset.m === 'vid' ? 700 : 520); }));
@@ -124,7 +125,9 @@
   ui();
 
   window.RealVid = {
-    start(){ if(running) return; running = true; fit(); last = performance.now(); raf = requestAnimationFrame(frame); },
+    start(){ if(running) return; running = true; fit();
+      if(vid.preload !== 'metadata'){ vid.preload = 'metadata'; vid.load(); }   // the 57 MB file is only touched once slide 6 is reached
+      last = performance.now(); raf = requestAnimationFrame(frame); },
     stop(){ running = false; cancelAnimationFrame(raf); vid.pause(); },
     pause(){ vid.pause(); }
   };

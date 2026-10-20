@@ -31,7 +31,7 @@
     </header>
 
     <div class="player" id="player">
-      <div class="player__video" id="ytHost" aria-hidden="true"><div id="ytPlayer"></div></div>
+      <div class="player__video" id="ytHost" aria-hidden="true"><video id="matrixVid" src="assets/video/matrix-clip.mp4" preload="none" playsinline></video></div>
       <div class="player__top">
         <span class="player__avatar" data-dust="#2dff8f" data-box data-density=".8"></span>
         <div class="player__ttl"><b data-dust="#ffffff">Проснись Нео | Матрица (1999)</b><small data-dust="#bdc1c6">Brilliant 4K Moments</small></div>
@@ -271,7 +271,7 @@
         <div class="editor__view" id="edView">
           <canvas id="demoCanvas" aria-label="First-person view of a chemistry titration"></canvas>
           <div class="rv-stage" id="rvStage">
-            <video class="editor__video" id="realVid" src="assets/video/demo-real.mp4#t=0.5" preload="metadata" playsinline muted></video>
+            <video class="editor__video" id="realVid" src="assets/video/demo-real.mp4#t=0.5" preload="none" playsinline muted></video>
             <div class="rv-gaze" id="rvGaze"><i></i><span class="mono">EXPERT GAZE</span></div>
             <div class="thought rv-thought" id="rvThought" aria-live="polite"></div>
             <div class="bpm rv-bpm" id="rvBpm"><span class="mono">HEART RATE</span><b id="rvBpmVal">78</b><canvas id="rvBpmCv" width="160" height="40"></canvas></div>
@@ -471,6 +471,7 @@
 <script src="js/models.js"></script>
 <script src="js/dread.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/perf.js"></script>
 <script src="js/ascii.js"></script>
 <script src="js/env.js"></script>
 <script src="js/hero.js"></script>

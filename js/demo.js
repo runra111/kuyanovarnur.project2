@@ -192,9 +192,11 @@
   tl.addEventListener('pointerup', () => { scrub = false; });
   Object.values(L).forEach(el => el.addEventListener('change', () => window.Sfx && Sfx.blip(el.checked ? 900 : 500)));
 
+  let held = false, wanted = false;                       // held: the video tab is showing, so the simulation does not need to run
   window.Demo = {
-    start(){ if(running) return; running = true; resize(); last = performance.now(); raf = requestAnimationFrame(frame); },
-    stop(){ running = false; cancelAnimationFrame(raf); },
+    start(){ wanted = true; if(running || held) return; running = true; resize(); last = performance.now(); raf = requestAnimationFrame(frame); },
+    stop(){ wanted = false; running = false; cancelAnimationFrame(raf); },
+    hold(on){ held = !!on; if(on){ running = false; cancelAnimationFrame(raf); } else if(wanted && !running){ running = true; resize(); last = performance.now(); raf = requestAnimationFrame(frame); } },
     toggle(){ setPlay(!playing); }
   };
 })();

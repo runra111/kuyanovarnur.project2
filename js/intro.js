@@ -1,6 +1,6 @@
-﻿/* Intro: a video-player page with a real video (the YouTube clip). Pressing Play floods the page with symbols and starts the site.
+﻿/* Intro: a video-player page with a real video (the clip, a local file). Pressing Play floods the page with symbols and starts the site.
    At the end of the site the big button switches it off like an old TV, the player page comes back and the clip plays;
-   at the key line the screen fills with "ТЫ В МАТРИЦЕ" (js/matrix.js). */
+   at the key line the screen fills with "The Matrix has you..." (js/matrix.js). */
 (function(){
   const $ = (s, r = document) => r.querySelector(s);
   const intro = $('#intro');
@@ -10,32 +10,22 @@
   const hashN = parseInt(location.hash.slice(1), 10);
   const skipIntro = (hashN && hashN > 1) || /nointro/.test(location.search);
 
-  /* ---- the video (YouTube clip, controls hidden: the page draws its own player UI on top) ---- */
-  const VIDEO_ID = '_3Y0-IYtHkI';
-  const NEO_AT = 40.5;                       // second of the clip where the screen starts filling with "ТЫ В МАТРИЦЕ" (tune here)
-  const POSTER = 'https://i.ytimg.com/vi/' + VIDEO_ID + '/maxresdefault.jpg';
-  let yt = null, ytReady = false, ytFailed = false, wantPlay = false;
-  const ytHost = $('#ytHost');
-  if(ytHost) ytHost.parentElement.style.setProperty('--poster', 'url("' + POSTER + '")');
-
-  function initYT(){
-    if(yt || !window.YT || !YT.Player) return;
-    const vars = { controls:0, disablekb:1, fs:0, modestbranding:1, rel:0, iv_load_policy:3, playsinline:1, cc_load_policy:0, autoplay:0 };
-    if(/^https?:$/.test(location.protocol)) vars.origin = location.origin;
-    yt = new YT.Player('ytPlayer', { videoId:VIDEO_ID, width:'100%', height:'100%', playerVars:vars, events:{
-      onReady(){ ytReady = true; if(wantPlay) startVideo(); },
-      onStateChange(e){ if(e.data === 0) videoEnded(); },
-      onError(){ ytFailed = true; if(wantPlay) videoFallback(); }
-    } });
+  /* ---- the video: the clip is a local file (no YouTube, so no ads); the page draws its own player UI on top ---- */
+  const NEO_AT = 40.5;                       // second of the clip where the screen starts filling with "The Matrix has you..." (tune here)
+  const POSTER = 'assets/img/matrix-poster.jpg';
+  const mv = $('#matrixVid');
+  let yt = null, ytReady = false, ytFailed = false, wantPlay = false;   // "yt" is a small wrapper around the <video> element
+  if(mv){
+    const play = () => { const p = mv.play(); if(p && p.catch) p.catch(() => {}); };
+    yt = { getCurrentTime:() => mv.currentTime, getDuration:() => mv.duration || 179, seekTo:s => { try{ mv.currentTime = s; }catch(e){} },
+           unMute:() => { mv.muted = false; }, setVolume:v => { mv.volume = Math.max(0, Math.min(1, v/100)); }, playVideo:play,
+           pauseVideo:() => mv.pause(), getPlayerState:() => mv.paused ? 2 : 1 };
+    mv.addEventListener('canplay', () => { ytReady = true; if(wantPlay) startVideo(); });
+    mv.addEventListener('ended', () => videoEnded());
+    mv.addEventListener('error', () => { ytFailed = true; if(wantPlay) videoFallback(); });
+    const pl = $('#player'); if(pl) pl.style.setProperty('--poster', 'url("' + new URL(POSTER, document.baseURI).href + '")');   // var() urls resolve against the stylesheet, so give it the full address
   }
-  function loadYT(){
-    if(!ytHost || yt || document.getElementById('yt-api')) return;
-    window.onYouTubeIframeAPIReady = initYT;
-    const sc = document.createElement('script'); sc.id = 'yt-api'; sc.src = 'https://www.youtube.com/iframe_api';
-    sc.onerror = () => { ytFailed = true; if(wantPlay) videoFallback(); };
-    document.head.appendChild(sc);
-    setTimeout(() => { if(!ytReady && !ytFailed && wantPlay) videoFallback(); }, 12000);
-  }
+  function loadYT(){ if(mv && mv.preload !== 'auto'){ mv.preload = 'auto'; mv.load(); } }   // start downloading the clip (10 MB) once the site starts
   const fmt = t => Math.floor(t/60) + ':' + String(Math.floor(t%60)).padStart(2, '0');
   const tm = $('.player__time'), dot = $('.player__track i');
   const HANDOVER = 40.8, FADE = 1.6;       // the clip's own sound hands over to the looped melody at 40.8 s and is gone by 42.4 s, before Neo's words (~43 s)
@@ -56,7 +46,7 @@
 
   function start(){
     if(busy) return; busy = true;
-    mode = 'site';
+    mode = 'site'; loadYT();
     if(reduce){ Deck.enter(sound); intro.classList.add('is-gone'); setTimeout(() => { if(mode === 'site') intro.style.display = 'none'; }, 1300); return; }
 
     const W = Math.max(320, innerWidth), H = Math.max(240, innerHeight), dpr = Math.min(devicePixelRatio || 1, 2);
@@ -148,7 +138,7 @@
     idleT = 4; intro.classList.add('is-idle');            // our fake controls stay hidden while the clip starts (the player's own title shows for a moment)
     clearInterval(watch); watch = setInterval(videoTick, 100);
   }
-  function videoFallback(){                // no connection to YouTube: keep the finale alive with a timer
+  function videoFallback(){                // the clip could not be loaded: keep the finale alive with a timer
     if(mode !== 'video') return;
     fbTimer = performance.now() - 0; clearInterval(watch); watch = setInterval(videoTick, 100);
     if(tm) tm.textContent = '0:00 / 2:59';
@@ -180,7 +170,7 @@
     if(finaleBusy || !Deck.started) return; finaleBusy = true;
     const site = $('#site'), crt = $('#crt'), root = document.documentElement;
     if(!crt || !site){ Deck.leave(); showPlayer(); finaleBusy = false; return; }
-    loadYT(); if(window.Sfx) Sfx.dreadPrepare();            // warm up the player and decode the loop while the TV is "switching off"
+    loadYT(); if(window.Sfx) Sfx.dreadPrepare();            // make sure the clip is loading and decode the loop while the TV is "switching off"
     if(window.Sfx && Sfx.on){ Sfx.crtOff(); setTimeout(() => Sfx.disable(), 1700); }
     // the "picture" that gets squashed: noise over the whole site
     const fx = document.createElement('div'); fx.className = 'crtfx';
@@ -252,5 +242,4 @@
     if(mode === 'poster' && !busy && intro.style.display !== 'none' && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); start(); } });
 
   if(skipIntro){ intro.style.display = 'none'; Deck.enter(false); }
-  else { loadYT(); }
 })();

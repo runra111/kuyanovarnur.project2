@@ -5,7 +5,7 @@
   if(!gl || !ascii || !window.THREE || !THREE.GLTFLoader || !window.AsciiFX || !window.MODEL_DATA){ window.Hero = { start(){}, stop(){}, intro(){}, resize(){} }; return; }
   const T = THREE;
 
-  const renderer = new T.WebGLRenderer({ canvas:gl, antialias:true, alpha:true });
+  const renderer = new T.WebGLRenderer({ canvas:gl, antialias:!window.Perf || Perf.level === 0, alpha:true, powerPreference:'high-performance' });
   renderer.setClearColor(0x000000, 0);
   const scene = new T.Scene();
   scene.environment = window.makeEnv(renderer);
@@ -118,7 +118,7 @@
     hands.left.position.y = hands.right.position.y = HAND.y + Math.sin(time*1.1 + 1)*.05;
     handMeshes.forEach(o => { o.material = AsciiFX.on ? handPearl : handHolo; });
     brainMeshes.forEach(o => { o.material = AsciiFX.on ? o.userData.solid : o.userData.holo; });
-    brainWires.forEach(w => { w.visible = !AsciiFX.on; });
+    brainWires.forEach(w => { w.visible = !AsciiFX.on && (!window.Perf || Perf.level === 0); });
     handHolo.uniforms.uTime.value = time;
     stage.render(scene, camera, time, { pointer:pointer.px, scan:true });
   }

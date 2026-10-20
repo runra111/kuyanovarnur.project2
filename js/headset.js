@@ -7,7 +7,7 @@
   if(!gl || !ascii || !window.THREE || !THREE.GLTFLoader || !window.AsciiFX || !window.MODEL_DATA){ window.Headset = { start(){}, stop(){} }; return; }
   const T = THREE;
 
-  const renderer = new T.WebGLRenderer({ canvas:gl, antialias:true, alpha:true });
+  const renderer = new T.WebGLRenderer({ canvas:gl, antialias:!window.Perf || Perf.level === 0, alpha:true, powerPreference:'high-performance' });
   renderer.setClearColor(0x000000, 0);
   const scene = new T.Scene();
   scene.environment = window.makeEnv(renderer);
