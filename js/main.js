@@ -61,7 +61,7 @@
   /* ---------- slide-specific lifecycle ---------- */
   function onEnter(i){
     const s = slides[i];
-    if(s.id === 's1') Hero.start(); else Hero.stop();
+    if(s.id === 's1' && introPlayed) Hero.start(); else Hero.stop();     // while the opening words play, the scene behind them stays off (it starts when they end)
     if(s.id === 's4') Headset.start(); else Headset.stop();
     if(s.id === 's6') Demo.start(); else Demo.stop();
     if(s.id === 's5') MiniBrain.start(); else MiniBrain.stop();
@@ -159,7 +159,7 @@
   function playIntro(){
     stopIntro(); introPlayed = false;
     const s1 = $('#s1'), shot = $('#editShot'), edit = $('#edit'), tcEl = $('#editTc');
-    if(reduce){ introPlayed = true; return; }
+    if(reduce){ introPlayed = true; Hero.start(); return; }
     s1.classList.add('intro'); s1.classList.remove('is-in'); requestAnimationFrame(() => requestAnimationFrame(() => s1.classList.add('is-in')));
     const t0 = performance.now(); let raf;
     (function tc(now){ const sec = (now - t0)/1000; tcEl.textContent = '00:00:0' + Math.min(9, Math.floor(sec)); raf = requestAnimationFrame(tc); })(t0);
@@ -172,7 +172,7 @@
       at += sh.t === 'live' ? 900 : 1000;
     });
     introTimers.push(setTimeout(() => {
-      edit.classList.add('flash'); window.Sfx && Sfx.whoosh(); Hero.intro();
+      edit.classList.add('flash'); window.Sfx && Sfx.whoosh(); Hero.start(); Hero.intro();
       s1.classList.remove('intro'); cancelAnimationFrame(raf);
       s1.classList.remove('is-in'); requestAnimationFrame(() => requestAnimationFrame(() => s1.classList.add('is-in')));
       introTimers.push(setTimeout(() => edit.classList.remove('flash'), 600));

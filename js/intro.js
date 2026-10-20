@@ -50,7 +50,7 @@
     if(reduce){ Deck.enter(sound); intro.classList.add('is-gone'); setTimeout(() => { if(mode === 'site') intro.style.display = 'none'; }, 1300); return; }
 
     const W = Math.max(320, innerWidth), H = Math.max(240, innerHeight), dpr = Math.min(devicePixelRatio || 1, 2);
-    const CW = Math.round(Math.max(9, Math.min(14, W/140))), CH = Math.round(CW*1.55), cols = Math.ceil(W/CW), rows = Math.ceil(H/CH);
+    const CW = Math.round(Math.max(9, Math.min(14, W/140))*(window.Perf ? Perf.cellScale : 1)), CH = Math.round(CW*1.55), cols = Math.ceil(W/CW), rows = Math.ceil(H/CH);
     const GLYPHS = '01#$%&*+<>?/\\|{}[]=~^:;ABCDEFXZ';
     const cv = document.createElement('canvas'); cv.className = 'intro-dust';
     cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px';
@@ -76,38 +76,48 @@
     }
     let entered = false;
     const GREENS = ['#eafff3', '#59ffa6', '#2dff8f', '#16c46f', '#0c7a45'];
+    // Speed: a row is drawn as a handful of whole strings (one per green) instead of one call per symbol, and the dark backing is
+    // drawn as runs of cells instead of one rectangle per cell.
+    const FONT = '"Share Tech Mono", ui-monospace, Consolas, monospace';
+    ctx.font = '100px ' + FONT; const adv = ctx.measureText('M').width/100 || .6;      // advance of one character per px of font size
+    const FS = Math.max(8, CW/adv);                                                       // the size at which one character is exactly one cell wide
+    const n = cols*rows, jit = new Float32Array(n), HT = new Float32Array(n), head = new Float32Array(cols), bot = new Int16Array(cols);
+    for(let i = 0; i < n; i++) jit[i] = hash(i, 5);
+    let lastTick = -1;
+    const SP = ' '.repeat(cols + 2), GL = GLYPHS.length;
 
     function frame(now){
       const t = (now - T0)/1000, tick = Math.floor(t*24);
+      if(tick !== lastTick){ lastTick = tick; for(let i = 0; i < n; i++) HT[i] = hash(i, tick); }
       ctx.clearRect(0, 0, W, H);
-      ctx.font = Math.round(CW*1.45) + 'px "Share Tech Mono", ui-monospace, Consolas, monospace'; ctx.textBaseline = 'top';
+      ctx.font = FS.toFixed(1) + 'px ' + FONT; ctx.textBaseline = 'top';
       if(!entered && t >= T_COVER){ entered = true; Deck.enter(sound); intro.style.display = 'none'; }
-      const R = t < T_COVER ? -1 : (t - T_COVER)/REVEAL*MAXD*1.12;          // radius of the cleared hole
-      const buckets = [[], [], [], [], []];
-      ctx.fillStyle = '#020c07'; ctx.beginPath();                            // dark backing so the page below is hidden while flooded
-      for(let c = 0; c < cols; c++){
-        const k = col[c], head = (t - k.d)*k.v;                              // row index of the flooding front
-        if(head < 0) continue;
-        const bot = Math.min(rows - 1, Math.floor(head));
-        for(let r = 0; r <= bot; r++){
-          const i = c*rows + r, dx = (c + .5)*CW - W/2, dy = (r + .5)*CH - H/2;
-          const dd = Math.hypot(dx, dy) + hash(i, 5)*MAXD*.07 - R;           // > 0: still covered, < 0: already cleared
-          if(t >= T_COVER && dd < 0) continue;
-          ctx.rect(c*CW, r*CH, CW, CH);
-          const dh = head - r;
-          let g = 4;                                                          // settled: dim green
-          if(dh < 1.2) g = 0;                                                 // the flooding front: near white
-          else if(dh < 6) g = 1 + ((dh - 1.2)/2.4 | 0);                       // bright trail behind the front
-          else if(hash(i, tick) < .08) g = 3;                                 // random sparkle
-          if(t >= T_COVER && dd < MAXD*.1) g = Math.min(g, dd < MAXD*.03 ? 0 : 2);   // the edge of the hole glows
-          buckets[g].push(c*CW, r*CH, GLYPHS[Math.floor(hash(i, tick)*GLYPHS.length)]);
+      const covered = t >= T_COVER, R = covered ? (t - T_COVER)/REVEAL*MAXD*1.12 : -1;   // radius of the cleared hole
+      for(let c = 0; c < cols; c++){ const k = col[c]; head[c] = (t - k.d)*k.v; bot[c] = head[c] < 0 ? -1 : Math.min(rows - 1, Math.floor(head[c])); }
+      const cmds = [];
+      ctx.fillStyle = '#020c07';                                                          // dark backing so the page below is hidden while flooded
+      for(let r = 0; r < rows; r++){
+        const y = r*CH, base = r*cols, dy = (r + .5)*CH - H/2, sr = [null, null, null, null, null], st = [0, 0, 0, 0, 0], en = [0, 0, 0, 0, 0];
+        let run = -1;
+        for(let c = 0; c < cols; c++){
+          let vis = r <= bot[c], dd = 0;
+          if(vis && covered){ const dx = (c + .5)*CW - W/2; dd = Math.sqrt(dx*dx + dy*dy) + jit[base + c]*MAXD*.07 - R; if(dd < 0) vis = false; }   // < 0: already cleared
+          if(!vis){ if(run >= 0){ ctx.fillRect(run*CW, y, (c - run)*CW, CH); run = -1; } continue; }
+          if(run < 0) run = c;
+          const h = HT[base + c], dh = head[c] - r;
+          let g = 4;                                                                      // settled: dim green
+          if(dh < 1.2) g = 0;                                                             // the flooding front: near white
+          else if(dh < 6) g = 1 + ((dh - 1.2)/2.4 | 0);                                   // bright trail behind the front
+          else if(h < .08) g = 3;                                                         // random sparkle
+          if(covered && dd < MAXD*.1) g = Math.min(g, dd < MAXD*.03 ? 0 : 2);            // the edge of the hole glows
+          const ch = GLYPHS[(h*GL) | 0];
+          if(sr[g] === null){ sr[g] = ch; st[g] = c; en[g] = c + 1; }
+          else { const gap = c - en[g]; sr[g] += (gap > 0 ? SP.substr(0, gap) : '') + ch; en[g] = c + 1; }
         }
+        if(run >= 0) ctx.fillRect(run*CW, y, (cols - run)*CW, CH);
+        for(let g = 0; g < 5; g++) if(sr[g] !== null) cmds.push(g, st[g]*CW, y, sr[g]);
       }
-      ctx.fill();
-      for(let g = 0; g < 5; g++){
-        ctx.fillStyle = GREENS[g]; const b = buckets[g];
-        for(let k = 0; k < b.length; k += 3) ctx.fillText(b[k + 2], b[k], b[k + 1]);
-      }
+      for(let k = 0; k < cmds.length; k += 4){ ctx.fillStyle = GREENS[cmds[k]]; ctx.fillText(cmds[k + 3], cmds[k + 1], cmds[k + 2]); }
       if(t < T_END) requestAnimationFrame(frame); else cv.remove();
     }
     requestAnimationFrame(frame);
